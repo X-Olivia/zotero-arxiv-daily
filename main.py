@@ -185,7 +185,52 @@ if __name__ == '__main__':
         logger.info("Reranking papers...")
         papers = rerank_paper(papers, corpus)
         if args.max_paper_num != -1:
-            papers = papers[:args.max_paper_num]
+            import random
+            
+            # 定义 CS 类别前缀
+            cs_categories = ['cs.']
+            
+            # 将论文分为 CS 和非 CS 两组
+            cs_papers = []
+            non_cs_papers = []
+            
+            for paper in papers:
+                # 检查论文的类别
+                categories = [cat.term for cat in paper._paper.categories]
+                is_cs = any(cat.startswith('cs.') for cat in categories)
+                
+                if is_cs:
+                    cs_papers.append(paper)
+                else:
+                    non_cs_papers.append(paper)
+            
+            logger.info(f"Total papers: {len(papers)}, CS: {len(cs_papers)}, Non-CS: {len(non_cs_papers)}")
+            
+            # 计算需要的数量
+            similar_count = int(args.max_paper_num * 0.6)  # 60% 相似
+            non_cs_count = args.max_paper_num - similar_count  # 40% 非CS
+            
+            # 取前 60% 最相关的论文（不限类别）
+            similar_papers = papers[:similar_count]
+            
+            # 从非 CS 论文中随机选择 40%
+            if len(non_cs_papers) >= non_cs_count:
+                random_non_cs = random.sample(non_cs_papers, non_cs_count)
+            else:
+                # 如果非 CS 论文不够，用剩余的 CS 论文补充
+                random_non_cs = non_cs_papers.copy()
+                remaining_count = non_cs_count - len(non_cs_papers)
+                # 从未被选中的 CS 论文中随机选择
+                unselected_cs = [p for p in cs_papers if p not in similar_papers]
+                if len(unselected_cs) >= remaining_count:
+                    random_non_cs.extend(random.sample(unselected_cs, remaining_count))
+                else:
+                    random_non_cs.extend(unselected_cs)
+                logger.warning(f"Not enough non-CS papers. Selected {len(non_cs_papers)} non-CS and {len(random_non_cs) - len(non_cs_papers)} CS papers to fill the gap.")
+            
+            # 合并两组论文
+            papers = similar_papers + random_non_cs
+            logger.info(f"Selected {len(similar_papers)} similar papers and {len(random_non_cs)} non-CS papers (target: {non_cs_count}).")
         if args.use_llm_api:
             logger.info("Using OpenAI API as global LLM.")
             set_global_llm(api_key=args.openai_api_key, base_url=args.openai_api_base, model=args.model_name, lang=args.language)
