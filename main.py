@@ -196,7 +196,12 @@ if __name__ == '__main__':
             
             for paper in papers:
                 # 检查论文的类别
-                categories = [cat.term for cat in paper._paper.categories]
+                # categories 可能是字符串列表或对象列表
+                categories = paper._paper.categories
+                if categories and hasattr(categories[0], 'term'):
+                    # 如果是对象，提取 term 属性
+                    categories = [cat.term for cat in categories]
+                # 否则已经是字符串列表，直接使用
                 is_cs = any(cat.startswith('cs.') for cat in categories)
                 
                 if is_cs:
